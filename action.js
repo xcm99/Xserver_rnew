@@ -7,6 +7,20 @@ const TG_BOT_TOKEN = process.env.TG_BOT_TOKEN;
 const TG_CHAT_ID = process.env.TG_CHAT_ID;
 
 /**
+ * 账号脱敏处理：例如 abcdefg@gmail.com -> ab****g@gmail.com
+ */
+function maskUsername(username) {
+    if (!username || !username.includes('@')) return username; // 如果不是邮箱格式，原样返回
+
+    const [prefix, domain] = username.split('@');
+    if (prefix.length <= 3) {
+        return `${prefix}***@${domain}`;
+    }
+    // 保留前2位和最后1位，中间加星号
+    return `${prefix.slice(0, 3)}***${prefix.slice(-1)}@${domain}`;
+}
+
+/**
  * 发送 Telegram 通知 (支持图片)
  */
 async function sendTelegramNotification(message, imagePath = null) {
@@ -83,7 +97,7 @@ async function sendTelegramNotification(message, imagePath = null) {
     });
 
     for (const user of users) {
-        console.log(`正在处理用户: ${user.username}`);
+        console.log(`正在处理用户: ${maskUsername(user.username)}`);
         const context = await browser.newContext();
         const page = await context.newPage();
 
@@ -114,11 +128,13 @@ async function sendTelegramNotification(message, imagePath = null) {
                 const match = bodyText.match(/更新をご希望の場合は、(.+?)以降にお試しください。/);
 
                 let msg;
+                const maskedId = maskUsername(user.username);
                 if (match && match[1]) {
-                    msg = `⚠️ 用户 ${user.username} 目前无法延期，下次延长时间在：${match[1]}`;
+                    msg = `⚠️ 用户 ${maskedId} 目前无法延期，下次延长时间在：${match[1]}`;
                 } else {
-                    msg = `⚠️ 用户 ${user.username} 未找到 '期限延长' 按钮。可能无法延长。`;
+                    msg = `⚠️ 用户 ${maskedId} 未找到 '期限延长' 按钮。可能无法延长。`;
                 }
+               
 
                 console.log(msg);
                 // 保存截图
@@ -138,14 +154,14 @@ async function sendTelegramNotification(message, imagePath = null) {
             // 7. 返回
             await page.getByRole('link', { name: '戻る' }).click();
 
-            const successMsg = `✅ 用户 ${user.username} 成功延长期限`;
+            const successMsg = `✅ 用户 ${maskUsername(user.username)} 成功延长期限`;
             console.log(successMsg);
             const successPath = `success_${user.username}.png`;
             await page.screenshot({ path: successPath });
             await sendTelegramNotification(successMsg, successPath);
 
         } catch (error) {
-            const errorMsg = `❌ 用户 ${user.username} 处理失败: ${error}`;
+            const errorMsg = `❌ 用户 ${maskUsername(user.username)} 处理失败: ${error.message}`;
             console.error(errorMsg);
             const errorPath = `error_${user.username}.png`;
             await page.screenshot({ path: errorPath });
